@@ -1,6 +1,17 @@
+
+### 2025-10-19 Atualização de Progresso
+- **Fase concluída:** Finalização da Fase 3 do projeto, com o modelo $$granite4micro$$ baixado e o servidor Ollama funcional no Ubuntu via WSL2.
+- **Erro encontrado:** Problemas ao conectar o Docker e Ollama no WSL2. O Docker não iniciava automaticamente após reboot, exigindo o comando `sudo service docker start`. O Ollama também não iniciava sozinho, pois o systemd está desativado por padrão no WSL2, sendo necessário rodar `ollama serve` manualmente.
+- **Aprendizado novo:** Para garantir o funcionamento dos serviços, é essencial iniciar manualmente o Docker e o Ollama após cada reinicialização do WSL2. Além disso, ao adicionar usuários ao grupo Docker, é preciso reiniciar a sessão com `wsl --shutdown` para aplicar as permissões.
+- **Nova funcionalidade:** Ambiente de IA local configurado com Dify Community Edition, ChromaDB e Ollama, todos rodando no Ubuntu via WSL2. O modelo $$granite4micro$$ está disponível para inferência local, eliminando custos de API e garantindo privacidade dos dados.
+- **Rotina criada:** Procedimento de inicialização pós-reboot: 1) Iniciar Docker com `sudo service docker start`; 2) Iniciar Ollama com `ollama serve` em um terminal dedicado; 3) Abrir um segundo terminal para demais comandos. Essa rotina garante que todos os serviços estejam ativos e acessíveis para uso do Dify e ingestão de dados.
+
+[1](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/collection_32c37133-aea9-420e-a232-615828b2e5d0/d1d92bbf-06fc-4656-aad8-8f37c928b723/Explicacao.pdf)
+
 Diário_Construtor de IA
 
 📘 Diário de Bordo Completo Criado
+
 
 Concluí a auditoria completa de 100% do histórico e anexos do projeto. Criei um diário de bordo estruturado e abrangente que servirá como sua memória permanente para evitar repetição de erros já solucionados.
 
