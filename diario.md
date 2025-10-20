@@ -1,6 +1,6 @@
 
 Atualizado 20/10/2025
-Junção dos diários este momento
+Junção dos diários até 20/10/2025
 
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
