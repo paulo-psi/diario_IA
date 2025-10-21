@@ -1,0 +1,177 @@
+
+
+# Auditoria Completa e Fluxo Automatizado para Download e Transcrição de Vídeos com GPU no Windows 11 + WSL2
+
+## Contexto do Ambiente
+
+- Sistema operacional principal: **Windows 11** com suporte ao **WSL2**
+- Distro Linux: **Ubuntu 22.04 LTS** (WSL2)
+- GPU NVIDIA: **GeForce RTX 3060 Laptop GPU** com driver NVIDIA Studio atualizado
+- Pasta de trabalho para vídeos: `~/videos` no WSL
+- Projeto de transcrição: `~/faster_whisper_project` com ambiente Python virtual (`venv`)
+
+## Ferramentas Utilizadas
+
+- `yt-dlp` para download de vídeo protegidos via HLS com cookies e referer
+- `wget` para baixar legendas
+- Faster Whisper para transcrição acelerada (GPU/CPU)
+- Python 3.9+ com PyTorch instalado no ambiente virtual
+
+***
+
+## Fluxo de Trabalho Detalhado
+
+### 1. Preparar pasta para vídeos
+
+```bash
+mkdir -p ~/videos
+sudo apt update && sudo apt install -y yt-dlp wget ffmpeg
+```
+
+### 2. Autenticação e obtenção das URLs
+
+- Usar Firefox com extensões “cookies.txt” para exportar cookies autenticados
+- Usar “HLS Stream Detector” para extrair URLs de vídeo `.m3u8` e legendas `.srt`
+- Salvar essas URLs no Windows em `links.txt`
+
+### 3. Transferir o arquivo `links.txt` para o WSL
+
+```bash
+cp "/mnt/c/Users/Paulo-PC/Downloads/links.txt" ~/videos/
+```
+
+### 4. Gerar listas específicas a partir de `links.txt`
+
+```bash
+cd ~/videos
+
+# Vídeos 1080p
+grep -o 'https://[^ ]*playlist-1080p\.m3u8[^ ]*' links.txt > lista_videos_1080p.txt
+
+# Legendas pt-br
+grep -o 'https://[^ ]*pt-br\.srt[^ ]*' links.txt > lista_legendas.txt
+```
+
+### 5. Download dos arquivos
+
+```bash
+# Baixar vídeos com yt-dlp, passando cookies e referer para evitar bloqueios
+yt-dlp -a lista_videos_1080p.txt \
+       --cookies ~/cookies.txt \
+       --referer "https://posartmed.grupoa.education/" \
+       -o "aula_%(autonumber)02d.mp4" \
+       --concurrent-fragments 4
+
+# Apagar possíveis legendas baixadas erradas
+rm pt-br.srt\?*
+
+# Baixar legendas nomeando manualmente para aula_XX.srt
+wget -O aula_01.srt "<URL_legenda_1>"
+wget -O aula_02.srt "<URL_legenda_2>"
+# Repetir para todas as 9 legendas
+```
+
+### 6. Script de transcrição com Faster Whisper (suportando CPU e GPU)
+
+Crie `transcribe_batch.py`:
+
+```python
+import os, gc, torch
+from faster_whisper import WhisperModel
+
+# Para usar GPU, altere device='cuda', compute_type='float16'
+# Para CPU fallback, use device='cpu', compute_type='int8'
+model = WhisperModel("medium", device="cuda", compute_type="float16")
+video_folder = os.path.expanduser("~/videos")
+
+for f in sorted(os.listdir(video_folder)):
+    if f.lower().endswith(".mp4"):
+        transcr = f.replace(".mp4", "_transcricao.txt")
+        if not os.path.exists(os.path.join(video_folder, transcr)):
+            print(f"🎬 Transcrevendo: {f}")
+            segments, info = model.transcribe(os.path.join(video_folder, f), language="pt", beam_size=1, vad_filter=True, vad_parameters=dict(min_silence_duration_ms=500))
+            with open(os.path.join(video_folder, transcr), "w", encoding="utf-8") as fo:
+                for seg in segments:
+                    fo.write(f"[{seg.start:.2f}s→{seg.end:.2f}s] {seg.text}\n")
+            print(f"✅ Salvo: {transcr}")
+            gc.collect()
+            torch.cuda.empty_cache()
+print("🎉 Todas as transcrições concluídas!")
+```
+
+### 7. Configuração CUDA e cuDNN para WSL2 Ubuntu 22.04
+
+#### Problema Comum
+- Ubuntu 22.04 não tem cuDNN 9 via apt, apenas cuDNN 8, pela compatibilidade do sistema.
+- Fast Whisper requer cuDNN 9 para rodar GPU sem erros.
+
+#### Solução Automatizada (script para preparar repositório, instalar CUDA 12.1 e cuDNN 9)
+
+```bash
+#!/bin/bash
+set -e
+
+curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub | sudo gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" | sudo tee /etc/apt/sources.list.d/cuda.list
+
+sudo apt update
+sudo apt install -y cuda-toolkit-12-1 libcudnn9 libcudnn9-dev
+
+echo 'export PATH=/usr/local/cuda-12.1/bin:$PATH' >> ~/.bashrc
+ echo 'export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+sudo ln -sf /usr/local/cuda-12.1/lib64/libcudnn_ops_infer.so.9 /usr/local/cuda-12.1/lib64/libcudnn_ops.so.9
+sudo ln -sf /usr/local/cuda-12.1/lib64/libcudnn_cnn_infer.so.9 /usr/local/cuda-12.1/lib64/libcudnn_cnn.so.9
+sudo ln -sf /usr/local/cuda-12.1/lib64/libcudnn_cnn_train.so.9 /usr/local/cuda-12.1/lib64/libcudnn_cnn_train.so.9
+sudo ln -sf /usr/local/cuda-12.1/lib64/libcudnn.so.9 /usr/local/cuda-12.1/lib64/libcudnn.so.9
+
+powershell.exe wsl --shutdown
+
+echo "Instalação concluída, reabra o Ubuntu para testar GPU e rodar transcrição"
+```
+
+### 8. Diagnóstico e resolução de erros comuns
+
+- Erro de símbolo cuDNN pode ser mitigado criando links simbólicos da versão 8 para 9 via `ln -sf`
+- Se persistir a incompatibilidade recomenda-se migrar para Ubuntu 20.04 no WSL2 para melhor suporte a CUDA/cuDNN padrão
+- Para continuar transcrevendo em CPU sem lentidão, altere no script `device="cpu", compute_type="int8"`
+
+### 9. Acesso aos arquivos
+
+- WSL2: `~/videos` em Ubuntu possuindo vídeos, legendas e transcrições
+- Windows Explorer: `\\wsl$\Ubuntu\home\diablo\videos`
+- Copiar arquivos para Windows local:
+
+```bash
+mkdir -p /mnt/d/MeusDownloads/Videos
+cp ~/videos/* /mnt/d/MeusDownloads/Videos/
+```
+
+### 10. Monitorar GPU
+
+```powershell
+wsl nvidia-smi -l 2
+```
+
+## Erros Superados & Aprendizados
+
+- Proteção HLS: Vídeos protegidos via tokens e cookies exigem uso de cookies.txt e referer no yt-dlp
+- Legendas baixadas com nome truncado corrigido via wget manual com `-O`
+- Erros cuDNN: Ausência/versão incompatível coregidos com instalação manual do CUDA Toolkit 12.1 e cuDNN 9 e links simbólicos
+- Transcrição via GPU somente rodou após configuração minuciosa do ambiente CUDA/cuDNN no WSL2
+- Processos longos podem ser executados em background com nohup
+
+***
+
+Este protocolo completo é apropriado para importar a qualquer momento e replicar seu setup em novo sistema, garantindo downloads, transcrição e uso da GPU no ambiente Windows 11 + Ubuntu 22.04 WSL2 + NVIDIA RTX 3060.
+
+[1](https://www.reddit.com/r/OpenAI/comments/18lm504/how_do_i_force_whisper_to_use_gpu_instead_of_cpu/)
+[2](https://github.com/guillaumekln/faster-whisper/issues/442)
+[3](https://github.com/2g4/whisper.cpp-wsl-nvidia)
+[4](https://forums.fast.ai/t/platform-windows-10-using-wsl2-w-gpu/73521)
+[5](https://www.youtube.com/watch?v=Kyc0AgMIBSU)
+[6](https://learn.microsoft.com/pt-br/windows/wsl/tutorials/gpu-compute)
+[7](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
+[8](https://learn.microsoft.com/en-us/windows/ai/directml/gpu-cuda-in-wsl)
