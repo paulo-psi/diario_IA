@@ -1,1 +1,132 @@
 
+# Ambiente
+# – Windows 11 com WSL2 Ubuntu 20.04 instalado em D:\ (disco local)
+# – GPU NVIDIA GeForce RTX 3060, driver Studio 581.57 instalado sem NVIDIA App
+# – Pasta de trabalho no WSL: ~/videos
+# – Projeto Faster-Whisper em ~/faster_whisper_project com venv Python
+
+# Ferramentas
+# – Ubuntu: yt-dlp, wget, ffmpeg, cuda, libcudnn8
+# – Windows: Firefox com extensões cookies.txt e HLS Stream Detector
+
+##############################
+# 1 – Preparar Pasta ~/videos
+##############################
+mkdir -p ~/videos
+sudo apt update
+sudo apt install -y yt-dlp wget ffmpeg
+
+##############################
+# 2 – Autenticação e Captura de URLs
+##############################
+# No Firefox:
+# – Login em https://posartmed.grupoa.education/…
+# – Instalar extensão “cookies.txt” → Exportar “Current Site” → salvar ~/cookies.txt
+# – Instalar “HLS Stream Detector” → tocar cada vídeo → clicar extensão → copiar URLs de playlist-1080p.m3u8 e pt-br.srt
+
+##############################
+# 3 – Transferir links.txt
+##############################
+# Salvar lista bruta de URLs exportadas no Windows em C:\Users\Paulo-PC\Downloads\links.txt
+cp "/mnt/c/Users/Paulo-PC/Downloads/links.txt" ~/videos/
+
+##############################
+# 4 – Gerar listas automáticas
+##############################
+cd ~/videos
+grep -o 'https://[^ ]*playlist-1080p\.m3u8[^ ]*' links.txt > lista_videos_1080p.txt
+grep -o 'https://[^ ]*pt-br\.srt[^ ]*' links.txt       > lista_legendas.txt
+
+##############################
+# 5 – Download em lote
+##############################
+# Vídeos 1080p (13 URLs)
+yt-dlp -a lista_videos_1080p.txt \
+      -o "aula_%(autonumber)02d.mp4" \
+      --cookies ~/cookies.txt \
+      --referer "https://posartmed.grupoa.education/…" \
+      --user-agent "Mozilla/5.0…Firefox/132.0" \
+      --concurrent-fragments 4
+
+# Legendas (9 URLs)
+# Remover arquivos incorretos
+rm pt-br.srt\?*
+# Baixar com nomes padronizados
+wget -i lista_legendas.txt -O aula_01.srt
+wget -i lista_legendas.txt -O aula_02.srt
+…replicar para cada uma das 9 linhas…
+
+##############################
+# 6 – Organização e Verificação
+##############################
+ls -lh ~/videos/*.mp4
+ls -lh ~/videos/*.srt
+
+##############################
+# 7 – Criação de Script de Transcrição
+##############################
+cd ~/faster_whisper_project
+mkdir -p .
+cat > transcribe_batch.py << 'EOF'
+import os, gc, torch
+from faster_whisper import WhisperModel
+
+# Versão CPU ou GPU:
+# Para GPU: device="cuda", compute_type="float16"
+# Para CPU: device="cpu", compute_type="int8"
+model = WhisperModel("medium", device="cuda", compute_type="float16")
+video_folder = os.path.expanduser("~/videos")
+
+for f in os.listdir(video_folder):
+    if f.lower().endswith((".mp4",".mkv")):
+        segments, info = model.transcribe(os.path.join(video_folder,f),
+                                          language="pt",
+                                          beam_size=1,
+                                          vad_filter=True,
+                                          vad_parameters=dict(min_silence_duration_ms=500))
+        out = os.path.join(video_folder,f.replace(".mp4","_transcricao.txt"))
+        with open(out,"w",encoding="utf-8") as o:
+            for seg in segments:
+                o.write(f"[{seg.start:.2f}s→{seg.end:.2f}s] {seg.text}\\n")
+        gc.collect(); torch.cuda.empty_cache()
+EOF
+
+##############################
+# 8 – Instalar CUDA/cuDNN no WSL2
+##############################
+# No Ubuntu:
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
+sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/
+sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/…
+sudo add-apt-repository "deb https://developer.download.nvidia.com/… /"
+sudo apt update
+sudo apt install -y cuda libcudnn8 libcudnn8-dev
+
+# Verificar GPU:
+python3 - << 'EOF'
+import torch
+print(torch.cuda.is_available(), torch.cuda.get_device_name(0))
+EOF
+
+##############################
+# 9 – Executar Transcrição em Background (GPU)
+##############################
+source venv/bin/activate
+nohup python3 transcribe_batch.py > transcribe.log 2>&1 &
+tail -f transcribe.log
+
+# Monitorar GPU:
+wsl nvidia-smi -l 2
+
+##############################
+# 10 – Acesso aos Arquivos
+##############################
+# No Ubuntu:
+ls ~/videos/*.mp4 ~/videos/*.srt ~/videos/*_transcricao.txt
+
+# No Windows Explorer:
+# \\wsl$\Ubuntu\home\diablo\videos
+
+# Para copiar ao Windows:
+mkdir -p /mnt/d/MeusDownloads/Videos
+cp ~/videos/* /mnt/d/MeusDownloads/Videos/
