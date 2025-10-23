@@ -1,5 +1,7 @@
 
 
+
+```markdown
 # 🧭 Diário de Bordo – Reconstrução do Ambiente IA Docling  
 **Data:** 22/10/2025  
 **Responsável:** diablo  
@@ -25,4 +27,80 @@ O **Docker** foi instalado diretamente dentro do Ubuntu (sem Docker Desktop), 
 - GPU NVIDIA acessível via `nvidia‑smi`  
 
 **Validação:**
+```
+nvidia-smi
+```
+**Resultado:**
+CUDA 13.0 ativa e driver 581.57 reconhecido.
 
+---
+
+### **2️⃣ Instalação do Docker no WSL2**
+**Comandos utilizados:**
+```
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker diablo
+```
+
+**Verificação:**
+```
+docker version
+```
+**Saída resumida:**  
+Docker 28.5.1 (Community Edition)  
+Containerd v1.7.28 | runc v1.3.0  
+
+**Teste funcional:**
+```
+docker run hello-world
+```
+**Resultado:**  
+Mensagem “Hello from Docker!” confirmando operação correta e comunicação daemon ↔ cliente.
+
+---
+
+### **3️⃣ Observações Técnicas**
+- Alerta `Failed to start systemd user session` é **inofensivo** (ignorado).  
+- Usuário `diablo` incluído no grupo `docker` com permissões permanentes.  
+- Daemon inicializa normalmente após `wsl --shutdown`.  
+
+---
+
+## 💻 Estado Atual do Ambiente  
+
+| Componente | Versão | Status | Observação |
+|-------------|---------|---------|-------------|
+| **Windows 11** | Build 26200.6901 | ✅ Ativo | Host principal |
+| **WSL2** | 2.6.1.0 | ✅ Operando | Kernel Linux 6.6.87.2 |
+| **Ubuntu** | 22.04 LTS | ✅ Rodando | Usuário `diablo` padrão |
+| **GPU** | RTX 3060 (CUDA 13.0) | ✅ Detectada | Driver Studio 581.57 |
+| **Docker** | 28.5.1 (CE) | ✅ Ativo | Teste `hello‑world` OK |
+
+---
+
+## 🚀 Próximas Fases Planejadas  
+
+1. **FASE 4 – Instalar Dify**  
+   - Clonar repositório oficial em `/mnt/d/projetos/dify`  
+   - Subir containers com `docker compose up -d`  
+   - Validar acesso em `http://localhost`  
+
+2. **FASE 5 – Integrar Ollama**  
+   - Instalar servidor Ollama no Ubuntu  
+   - Baixar modelos (`granite4:micro`, `qwen2.5-coder:14b`)  
+   - Conectar Dify ↔ Ollama  
+
+3. **FASE 6 – Construir Base de Conhecimento (RAG)**  
+   - Usar `nomic-embed-text` para embedding  
+   - Ingerir diários e documentos .md no Dify  
+
+---
+
+## 🏁 Conclusão  
+Ambiente IA Docling pleno.  
+Docker, NVIDIA e WSL2 estabilizados — **prontos para Dify + Ollama + RAG**.  
+Infraestrutura 100% local e funcional pós‑formatação.
+
+---
+```
