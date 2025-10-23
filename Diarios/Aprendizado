@@ -1,1 +1,28 @@
 
+
+# 🧭 Diário de Bordo – Reconstrução do Ambiente IA Docling  
+**Data:** 22/10/2025  
+**Responsável:** diablo  
+**Etapa:** Configuração do Ambiente Base e Ativação do Docker  
+**Status:** ✅ Concluído com Sucesso  
+
+---
+
+## 🧩 Resumo da Sessão  
+Após a formatação completa do sistema, a reconstrução do ambiente IA Docling atinge estabilidade total.  
+O **WSL2** foi reinstalado, o **Ubuntu 22.04** corretamente registrado e a GPU **NVIDIA RTX 3060** agora opera nativamente com **CUDA 13.0**.  
+
+O **Docker** foi instalado diretamente dentro do Ubuntu (sem Docker Desktop), garantindo execução autônoma de containers e controle total para as próximas fases – **Dify**, **Ollama** e **RAG Pipeline**.
+
+---
+
+## ⚙️ Etapas Executadas  
+
+### **1️⃣ Reinstalação do WSL2**
+- Kernel WSL atualizado para **6.6.87.2‑1**  
+- Distribuição instalada: **Ubuntu 22.04 LTS**  
+- Usuário padrão: `diablo`  
+- GPU NVIDIA acessível via `nvidia‑smi`  
+
+**Validação:**
+
